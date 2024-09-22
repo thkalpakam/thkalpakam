@@ -1,0 +1,75 @@
+fs_eeg = 256; 
+t_eeg = 0:1/fs_eeg:10; 
+f_eeg = [5, 10, 20]; 
+amp_eeg = [50, 30, 20]; 
+noise_eeg = 5;
+syntheticEEG = amp_eeg(1) * sin(2 * pi * f_eeg(1) * t_eeg) + ...
+                amp_eeg(2) * sin(2 * pi * f_eeg(2) * t_eeg) + ...
+                amp_eeg(3) * sin(2 * pi * f_eeg(3) * t_eeg) + ...
+                noise_eeg * randn(size(t_eeg));
+lf = 0.5; hf = 40;
+[b_eeg, a_eeg] = butter(4, [lf hf] / (fs_eeg / 2), 'bandpass');
+filteredEEG = filtfilt(b_eeg, a_eeg, syntheticEEG);
+N = length(filteredEEG);
+fftEEG = fft(filteredEEG);
+f_eeg_fft = (0:N-1)*(fs_eeg/N);
+psdEEG = (1/(fs_eeg*N)) * abs(fftEEG).^2;
+psdEEG(2:end-1) = 2*psdEEG(2:end-1);
+fs_gait = 100; 
+t_gait = 0:1/fs_gait:10; 
+frequencyg = 1.5; 
+amp_gait = 2;
+noise_gait = 0.5;
+Gait = amp_gait * sin(2 * pi * frequencyg * t_gait) + noise_gait * randn(size(t_gait));
+cutoffFreq = 5; 
+[b_gait, a_gait] = butter(4, cutoffFreq / (fs_gait / 2), 'low');
+filteredGait = filtfilt(b_gait, a_gait, Gait);
+threshold = 0.5 * max(filteredGait); 
+[pks, locs] = findpeaks(filteredGait, 'MinPeakHeight', threshold, 'MinPeakDistance', fs_gait/frequencyg);
+cycles = cell(length(locs)-1, 1);
+for i = 1:length(locs)-1
+    cycles{i} = filteredGait(locs(i):locs(i+1));
+end
+prothesis_state = zeros(size(t_gait)); 
+for i = 1:length(locs)
+    prothesis_state(locs(i)) = 1; 
+end
+figure(1);
+plot(t_eeg, syntheticEEG);
+title('Synthetic EEG Signal');
+xlabel('Time (s)');
+ylabel('Amplitude (μV)');
+
+figure(2);
+plot(t_eeg, filteredEEG);
+title('Filtered EEG Signal');
+xlabel('Time (s)');
+ylabel('Amplitude (μV)');
+
+figure(3);
+plot(f_eeg_fft(1:N/2), psdEEG(1:N/2));
+title('Power Spectral Density');
+xlabel('Frequency (Hz)');
+ylabel('Power/Frequency (dB/Hz)');
+
+figure(4);
+plot(t_gait, filteredGait);
+hold on;
+plot(locs/fs_gait, pks, 'ro');
+title('Filtered Gait Signal with Detected Peaks');
+xlabel('Time (s)');
+ylabel('Acceleration (m/s^2)');
+legend('Filtered Data', 'Detected Peaks');
+
+figure(5);
+scatter(locs/fs_gait, pks, 'filled');
+title('Scatter Plot of Detected Gait Cycles');
+xlabel('Time (s)');
+ylabel('Peak Acceleration (m/s^2)');
+
+figure(6);
+stairs(t_gait, prothesis_state, 'LineWidth', 1.5);
+title('Prosthesis Control State');
+xlabel('Time (s)');
+ylabel('Prosthesis State (0=Off, 1=On)');
+ylim([-0.5 1.5]);
